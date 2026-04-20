@@ -1,0 +1,408 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Rajdhani',sans-serif;background:#0a0e14;color:#c8d8e8;min-height:100vh;overflow-x:hidden;}
+  :root{--green:#00ff88;--amber:#ffb300;--red:#ff3d3d;--blue:#00b4ff;--dim:#1a2230;--border:#253040;}
+  .scanline{position:fixed;top:0;left:0;width:100%;height:100%;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,136,0.015) 2px,rgba(0,255,136,0.015) 4px);pointer-events:none;z-index:9999;}
+  header{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:#060b10;border-bottom:1px solid var(--green);position:relative;z-index:100;}
+  .logo{font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--green);letter-spacing:2px;}
+  .logo span{color:#fff;font-size:18px;display:block;letter-spacing:4px;}
+  .status-bar{display:flex;gap:20px;font-family:'Share Tech Mono',monospace;font-size:11px;}
+  .status-item{display:flex;align-items:center;gap:6px;}
+  .dot{width:7px;height:7px;border-radius:50%;}
+  .dot.green{background:var(--green);box-shadow:0 0 6px var(--green);}
+  .dot.amber{background:var(--amber);box-shadow:0 0 6px var(--amber);}
+  .dot.red{background:var(--red);box-shadow:0 0 6px var(--red);}
+  .clock{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--green);}
+  .main{display:grid;grid-template-columns:260px 1fr 280px;height:calc(100vh - 52px);}
+  .panel{background:#0d1520;border-right:1px solid var(--border);overflow-y:auto;}
+  .panel-title{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--green);padding:10px 14px;border-bottom:1px solid var(--border);letter-spacing:2px;background:#060b10;}
+  .map-area{position:relative;background:#0a1018;}
+  #map{width:100%;height:100%;}
+  .right-panel{background:#0d1520;border-left:1px solid var(--border);overflow-y:auto;}
+  .ingest-section{padding:12px;}
+  .ingest-title{font-family:'Share Tech Mono',monospace;font-size:10px;color:#556677;letter-spacing:2px;margin-bottom:8px;}
+  .source-btn{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;background:#111c28;border:1px solid var(--border);color:#aac;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:6px;letter-spacing:1px;transition:.15s;}
+  .source-btn:hover{border-color:var(--green);color:var(--green);background:#0d1e2a;}
+  .source-btn .icon{font-size:16px;width:24px;text-align:center;}
+  .source-btn .badge{margin-left:auto;font-family:'Share Tech Mono',monospace;font-size:10px;padding:2px 6px;border-radius:2px;}
+  .badge.live{background:rgba(0,255,136,.15);color:var(--green);border:1px solid rgba(0,255,136,.3);}
+  .badge.warn{background:rgba(255,179,0,.15);color:var(--amber);border:1px solid rgba(255,179,0,.3);}
+  .badge.off{background:rgba(255,61,61,.1);color:var(--red);border:1px solid rgba(255,61,61,.2);}
+  .divider{height:1px;background:var(--border);margin:12px 0;}
+  .node-list{padding:0 12px 12px;}
+  .node-item{padding:8px 10px;background:#111c28;border:1px solid var(--border);margin-bottom:5px;cursor:pointer;transition:.15s;}
+  .node-item:hover{border-color:var(--blue);background:#0e1f30;}
+  .node-item.selected{border-color:var(--green);background:#0d2218;}
+  .node-head{display:flex;align-items:center;gap:8px;margin-bottom:3px;}
+  .node-type{font-family:'Share Tech Mono',monospace;font-size:9px;padding:2px 5px;border-radius:1px;}
+  .osint{background:rgba(0,180,255,.15);color:var(--blue);border:1px solid rgba(0,180,255,.3);}
+  .humint{background:rgba(255,179,0,.15);color:var(--amber);border:1px solid rgba(255,179,0,.3);}
+  .imint{background:rgba(0,255,136,.15);color:var(--green);border:1px solid rgba(0,255,136,.3);}
+  .node-name{font-size:14px;font-weight:700;color:#dde;letter-spacing:.5px;}
+  .node-coords{font-family:'Share Tech Mono',monospace;font-size:10px;color:#556677;}
+  .detail-panel{padding:12px;}
+  .detail-img{width:100%;height:140px;object-fit:cover;background:#0a1018;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:#334455;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:1px;}
+  .detail-field{margin-top:8px;}
+  .field-label{font-family:'Share Tech Mono',monospace;font-size:9px;color:#556677;letter-spacing:2px;margin-bottom:2px;}
+  .field-value{font-size:14px;color:#c8d8e8;font-weight:600;}
+  .threat-meter{height:4px;background:#1a2230;border-radius:2px;margin-top:4px;overflow:hidden;}
+  .threat-fill{height:100%;border-radius:2px;transition:.5s;}
+  .drop-zone{border:2px dashed var(--border);background:#060c14;padding:16px;text-align:center;cursor:pointer;transition:.2s;margin:12px;}
+  .drop-zone:hover{border-color:var(--green);background:#0a1f14;}
+  .drop-zone p{font-size:13px;color:#556677;font-family:'Share Tech Mono',monospace;font-size:11px;}
+  .map-overlay{position:absolute;top:12px;left:12px;z-index:1000;display:flex;flex-direction:column;gap:6px;}
+  .map-btn{background:#060b10cc;border:1px solid var(--border);color:#aac;font-family:'Share Tech Mono',monospace;font-size:10px;padding:6px 10px;cursor:pointer;letter-spacing:1px;backdrop-filter:blur(4px);}
+  .map-btn.active{border-color:var(--green);color:var(--green);}
+  .map-btn:hover{border-color:var(--blue);}
+  .threat-badge{position:absolute;top:12px;right:12px;z-index:1000;background:#060b10cc;border:1px solid var(--red);padding:8px 14px;backdrop-filter:blur(4px);}
+  .threat-badge span{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--red);display:block;letter-spacing:2px;}
+  .threat-badge strong{font-size:22px;color:var(--red);font-family:'Share Tech Mono',monospace;}
+  .popup-overlay{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:2000;display:none;align-items:center;justify-content:center;}
+  .popup-box{background:#0d1520;border:1px solid var(--green);max-width:440px;width:90%;padding:20px;}
+  .popup-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border);}
+  .popup-close{background:none;border:none;color:#556677;cursor:pointer;font-size:20px;}
+  .popup-close:hover{color:var(--red);}
+  .sat-img{width:100%;height:200px;background:#060c14;border:1px solid var(--border);margin-bottom:12px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+  .sat-canvas{position:absolute;top:0;left:0;width:100%;height:100%;}
+  .meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .meta-item{background:#111c28;padding:8px;border-left:2px solid var(--green);}
+  .meta-item.warn{border-color:var(--amber);}
+  .meta-item.danger{border-color:var(--red);}
+  .scroll::-webkit-scrollbar{width:4px;}
+  .scroll::-webkit-scrollbar-track{background:#060b10;}
+  .scroll::-webkit-scrollbar-thumb{background:#253040;}
+  #upload-input{display:none;}
+  .filter-chips{display:flex;gap:6px;padding:10px 12px;flex-wrap:wrap;}
+  .chip{font-family:'Share Tech Mono',monospace;font-size:10px;padding:4px 8px;border:1px solid var(--border);cursor:pointer;letter-spacing:1px;background:#111c28;transition:.15s;}
+  .chip.active.osint-chip{border-color:var(--blue);color:var(--blue);}
+  .chip.active.humint-chip{border-color:var(--amber);color:var(--amber);}
+  .chip.active.imint-chip{border-color:var(--green);color:var(--green);}
+  .chip:hover{border-color:#aac;}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+  .blink{animation:blink 1s step-end infinite;}
+  .node-item.new{animation:flash .5s ease;}
+  @keyframes flash{0%{background:rgba(0,255,136,.3)}100%{background:#111c28}}
+</style>
+</head>
+<body>
+<div class="scanline"></div>
+<header>
+  <div class="logo">CLASSIFIED <span>STRATFUSE-7</span></div>
+  <div class="status-bar">
+    <div class="status-item"><div class="dot green"></div>OSINT STREAM</div>
+    <div class="status-item"><div class="dot amber"></div>HUMINT FEED</div>
+    <div class="status-item"><div class="dot green"></div>IMINT ACTIVE</div>
+    <div class="status-item"><div class="dot red blink"></div>LIVE OPS</div>
+  </div>
+  <div class="clock" id="clock">--:--:-- UTC</div>
+</header>
+<div class="main">
+  <!-- Left Panel -->
+  <div class="panel scroll">
+    <div class="panel-title">// DATA INGESTION</div>
+    <div class="ingest-section">
+      <div class="ingest-title">CONNECTED SOURCES</div>
+      <button class="source-btn" onclick="ingestSource('mongodb')"><span class="icon">🗄</span>MongoDB Atlas<span class="badge live">LIVE</span></button>
+      <button class="source-btn" onclick="ingestSource('s3')"><span class="icon">☁</span>AWS S3 Bucket<span class="badge live">LIVE</span></button>
+      <button class="source-btn" onclick="ingestSource('humint')"><span class="icon">📋</span>HUMINT Reports<span class="badge warn">SYNC</span></button>
+      <button class="source-btn" onclick="ingestSource('imint')"><span class="icon">🛰</span>IMINT Imagery<span class="badge off">STANDBY</span></button>
+      <div class="divider"></div>
+      <div class="ingest-title">MANUAL UPLOAD</div>
+      <div class="drop-zone" onclick="document.getElementById('upload-input').click()">
+        <p>▲ DROP CSV / JSON / JPG</p>
+        <p style="margin-top:6px;font-size:9px;color:#334455;">DRAG AND DROP OR CLICK</p>
+      </div>
+      <input type="file" id="upload-input" accept=".csv,.json,.jpg,.jpeg" onchange="handleUpload(this)">
+    </div>
+    <div class="divider" style="margin:0;"></div>
+    <div class="panel-title">// FILTER VIEW</div>
+    <div class="filter-chips">
+      <div class="chip active osint-chip" onclick="toggleFilter('OSINT',this)">OSINT</div>
+      <div class="chip active humint-chip" onclick="toggleFilter('HUMINT',this)">HUMINT</div>
+      <div class="chip active imint-chip" onclick="toggleFilter('IMINT',this)">IMINT</div>
+      <div class="chip" onclick="toggleFilter('HIGH',this)" style="border-color:#ff3d3d55;color:#ff3d3d;">HIGH CONF</div>
+    </div>
+    <div class="divider" style="margin:0;"></div>
+    <div class="panel-title">// INTELLIGENCE NODES</div>
+    <div class="node-list" id="node-list"></div>
+  </div>
+  <!-- Map -->
+  <div class="map-area">
+    <div id="map"></div>
+    <div class="map-overlay">
+      <button class="map-btn active" onclick="setMapLayer('dark')">TERRAIN</button>
+      <button class="map-btn" onclick="setMapLayer('sat')">SAT VIEW</button>
+      <button class="map-btn" onclick="setMapLayer('topo')">TOPO</button>
+    </div>
+    <div class="threat-badge">
+      <span>THREAT INDEX</span>
+      <strong id="threat-num">7.4</strong>
+      <span style="color:#556677;font-size:9px;">▲ ELEVATED</span>
+    </div>
+    <div class="popup-overlay" id="popup-overlay">
+      <div class="popup-box">
+        <div class="popup-header">
+          <div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--green);letter-spacing:2px;">IMINT ANALYSIS</div>
+            <div id="popup-title" style="font-size:20px;font-weight:700;color:#fff;letter-spacing:1px;"></div>
+          </div>
+          <button class="popup-close" onclick="closePopup()">×</button>
+        </div>
+        <div class="sat-img"><canvas class="sat-canvas" id="sat-canvas"></canvas></div>
+        <div class="meta-grid" id="popup-meta"></div>
+      </div>
+    </div>
+  </div>
+  <!-- Right Panel -->
+  <div class="right-panel scroll">
+    <div class="panel-title">// NODE DETAILS</div>
+    <div class="detail-panel" id="detail-panel">
+      <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:#334455;text-align:center;padding:40px 0;">SELECT A NODE TO<br>VIEW INTELLIGENCE</div>
+    </div>
+    <div class="divider" style="margin:0;"></div>
+    <div class="panel-title">// ACTIVITY LOG</div>
+    <div id="log" style="padding:8px 12px;font-family:'Share Tech Mono',monospace;font-size:10px;"></div>
+  </div>
+</div>
+<script>
+// Clock
+function updateClock(){
+  const n=new Date();
+  const t=n.toUTCString().split(' ')[4];
+  document.getElementById('clock').textContent=t+' UTC';
+}
+setInterval(updateClock,1000); updateClock();
+
+// Intelligence Data
+const nodes=[
+  {id:1,type:'OSINT',name:'ALPHA-7 COMPOUND',lat:33.89,lng:44.44,conf:92,threat:'HIGH',desc:'Suspected logistics hub. Social media geolocation confirmed. 14 unique IPs traced.',img:true,tags:['VERIFIED','PRIORITY-1'],date:'2025-07-14T08:32Z',analyst:'BRAVO-2',src:'MongoDB'},
+  {id:2,type:'HUMINT',name:'MARKET SQUARE',lat:36.20,lng:37.16,conf:75,threat:'MEDIUM',desc:'Field report: unusual vehicle concentration. Human source rated RELIABLE.',img:false,tags:['UNVERIFIED','WATCH'],date:'2025-07-13T21:10Z',analyst:'CHARLIE-1',src:'Manual CSV'},
+  {id:3,type:'IMINT',name:'FACILITY ZULU',lat:36.36,lng:43.15,conf:88,threat:'CRITICAL',desc:'Satellite pass detected construction activity. Thermal anomaly present.',img:true,tags:['VERIFIED','URGENT'],date:'2025-07-14T06:00Z',analyst:'DELTA-3',src:'AWS S3'},
+  {id:4,type:'OSINT',name:'PORT NODE ECHO',lat:36.83,lng:34.64,conf:65,threat:'LOW',desc:'Open source shipping manifest anomaly. Container registry mismatch.',img:false,tags:['PRELIMINARY'],date:'2025-07-13T14:20Z',analyst:'ECHO-4',src:'S3 Bucket'},
+  {id:5,type:'HUMINT',name:'AIRFIELD SECTOR 9',lat:34.56,lng:38.28,conf:80,threat:'MEDIUM',desc:'HUMINT: increased rotary-wing activity. Source in-country, grade B.',img:true,tags:['WATCH'],date:'2025-07-14T03:45Z',analyst:'FOXTROT-1',src:'JSON Upload'},
+  {id:6,type:'IMINT',name:'BRIDGE CROSSING X',lat:35.08,lng:40.13,conf:95,threat:'CRITICAL',desc:'Multi-pass imaging confirms heavy vehicle movement. Pattern of life shift.',img:true,tags:['VERIFIED','HOT'],date:'2025-07-14T09:00Z',analyst:'ALPHA-5',src:'AWS S3'},
+  {id:7,type:'OSINT',name:'COMMS RELAY B',lat:37.10,lng:36.22,conf:58,threat:'LOW',desc:'Intercept reference from SIGINT correlated with known cell tower.',img:false,tags:['PRELIMINARY','OSINT'],date:'2025-07-13T18:00Z',analyst:'BRAVO-3',src:'MongoDB'},
+  {id:8,type:'HUMINT',name:'WAREHOUSE 14',lat:33.52,lng:36.29,conf:83,threat:'HIGH',desc:'Source reports weapons cache. Unable to confirm. Cross-ref requested.',img:true,tags:['UNVERIFIED','PRIORITY-2'],date:'2025-07-14T07:20Z',analyst:'CHARLIE-2',src:'Manual CSV'},
+];
+
+let activeFilters=new Set(['OSINT','HUMINT','IMINT']);
+let selectedNode=null;
+let map, markers={};
+
+// Color config
+const typeColor={OSINT:'#00b4ff',HUMINT:'#ffb300',IMINT:'#00ff88'};
+const threatColor={HIGH:'#ff3d3d',CRITICAL:'#ff3d3d',MEDIUM:'#ffb300',LOW:'#00b4ff'};
+
+// Init Map
+function initMap(){
+  map=L.map('map',{zoomControl:false,attributionControl:false}).setView([35.5,38.5],6);
+  L.control.zoom({position:'bottomright'}).addTo(map);
+  setMapLayer('dark');
+  renderMarkers();
+}
+
+function setMapLayer(type){
+  if(window._tileLayer) map.removeLayer(window._tileLayer);
+  const tiles={
+    dark:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    sat:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    topo:'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png'
+  };
+  window._tileLayer=L.tileLayer(tiles[type],{maxZoom:18}).addTo(map);
+  document.querySelectorAll('.map-btn').forEach(b=>b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+function createMarkerIcon(node){
+  const c=typeColor[node.type];
+  const pulse=node.threat==='CRITICAL'?`<div style="position:absolute;top:-4px;left:-4px;width:20px;height:20px;border:2px solid ${c};border-radius:50%;animation:pulse 1.5s ease-out infinite;opacity:.6;"></div>`:'';
+  const svg=`<div style="position:relative;width:12px;height:12px;">${pulse}<div style="width:12px;height:12px;background:${c};border-radius:50%;box-shadow:0 0 8px ${c};border:2px solid rgba(255,255,255,.3);"></div></div>`;
+  return L.divIcon({html:`<style>@keyframes pulse{0%{transform:scale(1);opacity:.6}100%{transform:scale(2.5);opacity:0}}</style>${svg}`,iconSize:[12,12],className:'',iconAnchor:[6,6]});
+}
+
+function renderMarkers(){
+  Object.values(markers).forEach(m=>map.removeLayer(m));
+  markers={};
+  nodes.filter(n=>activeFilters.has(n.type)).forEach(n=>{
+    const m=L.marker([n.lat,n.lng],{icon:createMarkerIcon(n)}).addTo(map);
+    m.on('click',()=>selectNode(n));
+    m.on('mouseover',()=>{
+      if(n.img){
+        const tip=L.popup({className:'dark-popup',closeButton:false,offset:[0,-8]}).setLatLng([n.lat,n.lng])
+          .setContent(`<div style="background:#0d1520;border:1px solid #00ff88;padding:8px;font-family:Share Tech Mono,monospace;font-size:10px;color:#c8d8e8;min-width:160px;"><div style="color:#00ff88;margin-bottom:4px;letter-spacing:1px;">${n.name}</div><div style="color:#556677;">${n.type} | CONF: ${n.conf}%</div><div style="margin-top:4px;color:#ffb300;">▸ CLICK FOR IMINT</div></div>`);
+        map.openPopup(tip);
+      }
+    });
+    m.on('mouseout',()=>map.closePopup());
+    markers[n.id]=m;
+  });
+}
+
+function toggleFilter(f,el){
+  if(el.classList.contains('active')){activeFilters.delete(f);el.classList.remove('active');}
+  else{activeFilters.add(f);el.classList.add('active');}
+  renderMarkers(); renderNodeList();
+}
+
+// Node List
+function renderNodeList(){
+  const el=document.getElementById('node-list');
+  const filtered=nodes.filter(n=>activeFilters.has(n.type));
+  el.innerHTML=filtered.map(n=>`
+    <div class="node-item ${selectedNode&&selectedNode.id===n.id?'selected':''}" onclick="selectNode(${JSON.stringify(n).replace(/"/g,'&quot;')})">
+      <div class="node-head">
+        <span class="node-type ${n.type.toLowerCase()}">${n.type}</span>
+        <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:${threatColor[n.threat]};">${n.threat}</span>
+        ${n.img?'<span style="font-family:\'Share Tech Mono\',monospace;font-size:9px;color:#00ff88;margin-left:auto;">📷 IMG</span>':''}
+      </div>
+      <div class="node-name">${n.name}</div>
+      <div class="node-coords">${n.lat.toFixed(3)}°N ${n.lng.toFixed(3)}°E · CONF ${n.conf}%</div>
+    </div>
+  `).join('');
+}
+
+function selectNode(n){
+  if(typeof n==='string') n=JSON.parse(n);
+  selectedNode=n;
+  map.setView([n.lat,n.lng],9,{animate:true});
+  renderNodeList();
+  showDetail(n);
+  if(n.img) setTimeout(()=>showImintPopup(n),400);
+  addLog(`NODE ACCESSED: ${n.name}`);
+}
+
+function showDetail(n){
+  const tc=threatColor[n.threat];
+  const confPct=n.conf;
+  document.getElementById('detail-panel').innerHTML=`
+    <div style="margin-bottom:10px;padding:8px;background:#060c14;border-left:3px solid ${typeColor[n.type]};">
+      <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:${typeColor[n.type]};letter-spacing:2px;">${n.type} INTELLIGENCE</div>
+      <div style="font-size:20px;font-weight:700;color:#fff;margin-top:2px;">${n.name}</div>
+    </div>
+    <div class="detail-field"><div class="field-label">THREAT LEVEL</div>
+      <div class="field-value" style="color:${tc};">${n.threat}</div>
+      <div class="threat-meter"><div class="threat-fill" style="width:${confPct}%;background:${tc};"></div></div>
+    </div>
+    <div class="detail-field"><div class="field-label">CONFIDENCE</div><div class="field-value">${n.conf}%</div></div>
+    <div class="detail-field"><div class="field-label">COORDINATES</div><div class="field-value" style="font-family:'Share Tech Mono',monospace;font-size:12px;">${n.lat.toFixed(4)}°N / ${n.lng.toFixed(4)}°E</div></div>
+    <div class="detail-field"><div class="field-label">SOURCE</div><div class="field-value">${n.src}</div></div>
+    <div class="detail-field"><div class="field-label">ANALYST</div><div class="field-value">${n.analyst}</div></div>
+    <div class="detail-field"><div class="field-label">TIMESTAMP</div><div class="field-value" style="font-family:'Share Tech Mono',monospace;font-size:11px;">${n.date}</div></div>
+    <div class="detail-field"><div class="field-label">ASSESSMENT</div><div style="font-size:13px;color:#aac;line-height:1.5;margin-top:4px;">${n.desc}</div></div>
+    <div class="detail-field"><div class="field-label">TAGS</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">${n.tags.map(t=>`<span style="font-family:'Share Tech Mono',monospace;font-size:9px;padding:2px 6px;border:1px solid #253040;color:#778899;">${t}</span>`).join('')}</div></div>
+    ${n.img?`<button onclick="showImintPopup(currentNode())" style="width:100%;margin-top:14px;padding:8px;background:rgba(0,255,136,.1);border:1px solid var(--green);color:var(--green);font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;letter-spacing:2px;">▸ VIEW IMINT IMAGERY</button>`:''}
+  `;
+}
+
+function currentNode(){return selectedNode;}
+
+// IMINT Popup with canvas-drawn fake satellite imagery
+function showImintPopup(n){
+  document.getElementById('popup-title').textContent=n.name;
+  document.getElementById('popup-overlay').style.display='flex';
+  const meta=[
+    {label:'CONF',val:n.conf+'%',cls:''},
+    {label:'THREAT',val:n.threat,cls:n.threat==='CRITICAL'||n.threat==='HIGH'?'danger':n.threat==='MEDIUM'?'warn':''},
+    {label:'TYPE',val:n.type,cls:''},
+    {label:'DATE',val:n.date.substring(0,10),cls:''},
+  ];
+  document.getElementById('popup-meta').innerHTML=meta.map(m=>`<div class="meta-item ${m.cls}"><div class="field-label">${m.label}</div><div style="font-family:'Share Tech Mono',monospace;font-size:13px;font-weight:700;">${m.val}</div></div>`).join('');
+  setTimeout(()=>drawSatelliteImg(n),50);
+}
+
+function drawSatelliteImg(n){
+  const c=document.getElementById('sat-canvas');
+  const ctx=c.getContext('2d');
+  c.width=c.offsetWidth||380; c.height=c.offsetHeight||200;
+  const w=c.width, h=c.height;
+  // Dark base
+  ctx.fillStyle='#060c14'; ctx.fillRect(0,0,w,h);
+  // Terrain blocks
+  const rng=(s)=>{let x=Math.sin(s)*43758.5453;return x-Math.floor(x);};
+  const seed=n.id*7;
+  // Grid of terrain cells
+  for(let i=0;i<30;i++){for(let j=0;j<20;j++){
+    const v=rng(i*100+j*3+seed);
+    const g=Math.floor(v*40+10);
+    ctx.fillStyle=`rgb(${g},${g+10},${g+5})`;
+    ctx.fillRect(i*(w/30),j*(h/20),w/30-1,h/20-1);
+  }}
+  // Roads
+  ctx.strokeStyle='rgba(200,200,180,0.3)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(0,h*0.35); ctx.bezierCurveTo(w*0.3,h*0.4,w*0.7,h*0.3,w,h*0.45); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(w*0.5,0); ctx.lineTo(w*0.5,h); ctx.stroke();
+  // Structures
+  ctx.fillStyle='rgba(255,200,100,0.6)';
+  [[0.3,0.4,30,20],[0.55,0.3,20,25],[0.4,0.6,40,15],[0.7,0.5,18,18]].forEach(([rx,ry,rw,rh])=>{
+    ctx.fillRect(rx*w,ry*h,rw,rh);
+    ctx.strokeStyle='rgba(255,220,150,0.8)'; ctx.lineWidth=0.5;
+    ctx.strokeRect(rx*w,ry*h,rw,rh);
+  });
+  // Thermal anomaly
+  if(n.threat==='CRITICAL'||n.threat==='HIGH'){
+    const g2=ctx.createRadialGradient(w*0.4,h*0.5,0,w*0.4,h*0.5,50);
+    g2.addColorStop(0,'rgba(255,80,0,0.7)'); g2.addColorStop(1,'rgba(255,80,0,0)');
+    ctx.fillStyle=g2; ctx.fillRect(0,0,w,h);
+  }
+  // Crosshair target
+  const tx=w*0.4, ty=h*0.5;
+  ctx.strokeStyle='#00ff88'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(tx-20,ty); ctx.lineTo(tx-8,ty); ctx.moveTo(tx+8,ty); ctx.lineTo(tx+20,ty);
+  ctx.moveTo(tx,ty-20); ctx.lineTo(tx,ty-8); ctx.moveTo(tx,ty+8); ctx.lineTo(tx,ty+20); ctx.stroke();
+  ctx.strokeStyle='rgba(0,255,136,0.5)'; ctx.beginPath(); ctx.arc(tx,ty,12,0,Math.PI*2); ctx.stroke();
+  // Grid overlay
+  ctx.strokeStyle='rgba(0,255,136,0.07)'; ctx.lineWidth=0.5;
+  for(let x=0;x<w;x+=20){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+  for(let y=0;y<h;y+=20){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+  // Scanline
+  for(let y=0;y<h;y+=3){ctx.fillStyle='rgba(0,0,0,0.15)';ctx.fillRect(0,y,w,1);}
+  // Coords overlay
+  ctx.fillStyle='rgba(0,255,136,0.9)'; ctx.font='9px Share Tech Mono,monospace';
+  ctx.fillText(n.lat.toFixed(4)+'°N '+n.lng.toFixed(4)+'°E',6,h-6);
+  ctx.fillText('RES: 0.5m · PASS: '+n.date.substring(0,10),w-170,h-6);
+}
+
+function closePopup(){document.getElementById('popup-overlay').style.display='none';}
+
+// Log
+function addLog(msg){
+  const el=document.getElementById('log');
+  const t=new Date().toUTCString().split(' ')[4];
+  el.innerHTML=`<div style="padding:4px 0;border-bottom:1px solid #151f2b;"><span style="color:#334455;">[${t}]</span> <span style="color:#7a9ab5;">${msg}</span></div>`+el.innerHTML;
+  if(el.children.length>20) el.lastChild.remove();
+}
+
+// Ingestion simulation
+function ingestSource(src){
+  const labels={mongodb:'MongoDB Atlas',s3:'AWS S3',humint:'HUMINT JSON',imint:'IMINT bucket'};
+  const count=Math.floor(Math.random()*3)+1;
+  addLog(`INGESTED ${count} RECORDS FROM ${labels[src]}`);
+  // Flash a random node
+  document.querySelectorAll('.node-item').forEach((el,i)=>{if(i===Math.floor(Math.random()*nodes.length)){el.classList.add('new');setTimeout(()=>el.classList.remove('new'),600);}});
+}
+
+function handleUpload(inp){
+  const f=inp.files[0];
+  if(!f) return;
+  addLog(`FILE UPLOADED: ${f.name} (${(f.size/1024).toFixed(1)} KB)`);
+  addLog(`PARSING ${f.name.split('.').pop().toUpperCase()} FORMAT...`);
+  setTimeout(()=>addLog('RECORD PROCESSED: 1 NEW NODE PENDING REVIEW'),1200);
+}
+
+// Init
+renderNodeList();
+initMap();
+addLog('STRATFUSE-7 SYSTEM ONLINE');
+addLog('CONNECTED TO 4 INTELLIGENCE STREAMS');
+addLog('AWAITING ANALYST AUTHENTICATION');
+</script>
+</body>
+</html>
